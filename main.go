@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -38,6 +39,7 @@ func main() {
 	var largestResSize, smallestResSize int64 = -1, -1
 	var totalTime float64 = 0
 	var successCount int64 = 0
+	var errorCodesArr []int
 	// var totalBytesRead int =
 	for i := int64(0); i < *profileFlag; i++ {
 		startTime := time.Now()
@@ -54,7 +56,7 @@ func main() {
 		// checkError(err)
 		// fmt.Printf(status)
 
-		_, totalBytesRead, err := Read(conn)
+		_, totalBytesRead, statusCode, err := Read(conn)
 		// res, err := ioutil.ReadAll(conn)
 		checkError(err)
 
@@ -68,6 +70,13 @@ func main() {
 		// if strings.Contains(status, "200") {
 		// 	successCount++
 		// }
+		if statusCode >= 200 && statusCode <= 299 {
+			successCount++
+		}
+
+		if statusCode >= 400 && statusCode <= 599 {
+			errorCodesArr = append(errorCodesArr, statusCode)
+		}
 
 		resTime := endTime.Sub(startTime).Seconds()
 		if i == 0 || resTime < fastestResTime {
@@ -92,19 +101,18 @@ func main() {
 	fmt.Printf("Mean Response Time: %f\n", float64(totalTime)/float64(*profileFlag))
 	fmt.Printf("Median Response Time: %f\n", 1.0)
 	fmt.Printf("Percentage of Successful Requests: %f%%\n", float64(successCount)/float64(*profileFlag)*100)
+	fmt.Printf("Error response codes: %v\n", errorCodesArr)
 	fmt.Printf("Size of smallest response (in bytes): %d\n", smallestResSize)
 	fmt.Printf("Size of largest response (in bytes): %d\n", largestResSize)
-	// fmt.Printf("")
-	// fmt.Println(u)
-
 }
 
 // Read reads from a connection
-func Read(conn net.Conn) (string, int64, error) {
+func Read(conn net.Conn) (string, int64, int, error) {
 	reader := bufio.NewReader(conn)
 	// scanner := bufio.NewScanner(reader)
 	var buffer bytes.Buffer
 	var i int = -1
+	var statusCode int
 	var totalBytesRead int64 = 0
 	var headerDone bool = false
 	// for scanner.Scan() {
@@ -135,7 +143,8 @@ func Read(conn net.Conn) (string, int64, error) {
 		// fmt.Println(i)
 		// fmt.Println("ere")
 
-		fmt.Printf(string(bytesArr))
+		// fmt.Printf(string(bytesArr))
+
 		// fmt.Printf("bytes: %d\n", len(bytesArr))
 		if err != nil {
 			fmt.Println("didnt end in delim")
@@ -152,6 +161,11 @@ func Read(conn net.Conn) (string, int64, error) {
 			if strings.Contains(string(bytesArr), "\r\n") {
 				isPrevDelim = true
 			}
+
+			if i == 0 || strings.Contains(string(bytesArr), "200") {
+				fmt.Println(strings.Split(string(bytesArr), " ")[1])
+				statusCode, err = strconv.Atoi(strings.Split(string(bytesArr), " ")[1])
+			}
 		} else {
 			fmt.Printf("bytes: %d\n", len(bytesArr))
 		}
@@ -161,7 +175,7 @@ func Read(conn net.Conn) (string, int64, error) {
 				fmt.Println("EOF")
 				break
 			}
-			return "", totalBytesRead, err
+			return "", totalBytesRead, -1, err
 		}
 		buffer.Write(bytesArr)
 		// if headerDone {
@@ -174,7 +188,7 @@ func Read(conn net.Conn) (string, int64, error) {
 		// }
 	}
 	// return buffer.String(), buffer.Len(), nil
-	return buffer.String(), totalBytesRead, nil
+	return buffer.String(), totalBytesRead, statusCode, nil
 }
 
 func checkError(err error) {

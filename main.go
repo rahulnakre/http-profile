@@ -2,7 +2,9 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
+	"io"
 	"net"
 	"net/url"
 	"os"
@@ -10,6 +12,25 @@ import (
 
 	"github.com/pborman/getopt"
 )
+
+func Read(conn net.Conn) (string, error) {
+	reader := bufio.NewReader(conn)
+	var buffer bytes.Buffer
+	for {
+		ba, isPrefix, err := reader.ReadLine()
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return "", err
+		}
+		buffer.Write(ba)
+		if !isPrefix {
+			break
+		}
+	}
+	return buffer.String(), nil
+}
 
 func main() {
 	// https://cloudflare-assignment.rahulnakre.workers.dev/
@@ -80,11 +101,15 @@ func main() {
 		checkError(err)
 
 		status, err := bufio.NewReader(conn).ReadString('\n')
+		// rest, err := bufio.NewReader(conn).ReadBytes()
+		s, err := Read(conn)
+		checkError(err)
 		// res, err := ioutil.ReadAll(conn)
 		endTime := time.Now()
 		checkError(err)
 
 		fmt.Printf(status)
+		fmt.Printf(s)
 
 		// fmt.Printf("size %d\n", len(res))
 		// if strings.Contains(status, "200") {

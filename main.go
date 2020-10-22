@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -16,7 +17,6 @@ import (
 )
 
 func main() {
-	// https://cloudflare-assignment.rahulnakre.workers.dev/
 	urlFlag := getopt.StringLong("url", 0, "", "url of a site")
 	helpFlag := getopt.BoolLong("help", 0, "Help")
 	profileFlag := getopt.Int64Long("profile", 0, 1, "Profile")
@@ -48,28 +48,16 @@ func main() {
 		checkError(err)
 		defer conn.Close()
 
-		// _, err = fmt.Fprintf(conn, "GET / HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n", u.Host)
 		_, err = fmt.Fprintf(conn, "GET %s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n", u.Path, u.Host)
 		checkError(err)
 
-		// status, err := bufio.NewReader(conn).ReadString('\n')
-		// checkError(err)
-		// fmt.Printf(status)
-
 		_, totalBytesRead, statusCode, err := Read(conn)
-		// res, err := ioutil.ReadAll(conn)
 		checkError(err)
 
 		endTime := time.Now()
 
-		// fmt.Printf(s + "\n")
 		fmt.Printf("bytes read: %d\n", totalBytesRead)
-		// fmt.Println(string(res) + "\n")
 
-		// fmt.Printf("size %d\n", len(res))
-		// if strings.Contains(status, "200") {
-		// 	successCount++
-		// }
 		if statusCode >= 200 && statusCode <= 299 {
 			successCount++
 		}
@@ -109,48 +97,27 @@ func main() {
 // Read reads from a connection
 func Read(conn net.Conn) (string, int64, int, error) {
 	reader := bufio.NewReader(conn)
-	// scanner := bufio.NewScanner(reader)
 	var buffer bytes.Buffer
 	var i int = -1
 	var statusCode int
 	var totalBytesRead int64 = 0
 	var headerDone bool = false
-	// for scanner.Scan() {
-	// 	// fmt.Println("here")
-	// 	w := scanner.Text()
-	// 	buffer.WriteString(w)
-	// 	fmt.Println(w)
-	// 	fmt.Printf("%v\n", strings.Contains(w, "\n"))
-	// 	if len(w) >= 4 && w[len(w)-4:] == "\r\n\r\n" {
-	// 		buffer.WriteString("\n")
-	// 		fmt.Printf(buffer.String())
-	// 		buffer.Reset()
-	// 	}
-	// }
 
 	// return "sup", 3, nil
 	var isPrevDelim bool = false
 	for {
 		i++
-		// bytesArr, _, err := reader.ReadLine()
 		bytesArr, err := reader.ReadBytes('\n')
-		// if err != nil {
 
-		// }
 		if headerDone {
 			totalBytesRead += int64(len(bytesArr))
 		}
-		// fmt.Println(i)
-		// fmt.Println("ere")
 
-		// fmt.Printf(string(bytesArr))
-
-		// fmt.Printf("bytes: %d\n", len(bytesArr))
 		if err != nil {
 			fmt.Println("didnt end in delim")
+			return "", -1, -1, errors.New("Error reading a the request")
 		}
-		// fmt.Println(strings.Contains(string(bytesArr), "\r\n"))
-		// fmt.Println(strings.EqualFold(string(bytesArr), "\r\n"))
+
 		if !headerDone {
 			if strings.EqualFold(string(bytesArr), "\r\n") && isPrevDelim {
 				fmt.Println("END OF HEADER")
@@ -178,16 +145,7 @@ func Read(conn net.Conn) (string, int64, int, error) {
 			return "", totalBytesRead, -1, err
 		}
 		buffer.Write(bytesArr)
-		// if headerDone {
-		// 	totalBytesRead += len(bytesArr)
-		// }
-
-		// if !isPrefix {
-		// 	fmt.Println("breakubg cus isPrefix")
-		// 	break
-		// }
 	}
-	// return buffer.String(), buffer.Len(), nil
 	return buffer.String(), totalBytesRead, statusCode, nil
 }
 

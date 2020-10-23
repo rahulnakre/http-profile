@@ -78,9 +78,6 @@ func main() {
 		resTime := endTime.Sub(startTime).Seconds()
 
 		resTimeArr = append(resTimeArr, resTime)
-		// if maxHeap.Len() == 0 {
-		// 	maxHeap.Push(resTime)
-		// } else if maxHeap.
 
 		if i == 0 || resTime < fastestResTime {
 			fastestResTime = resTime
@@ -134,9 +131,10 @@ func Read(conn net.Conn) (string, int64, int, error) {
 		if headerDone {
 			totalBytesRead += int64(len(bytesArr))
 		}
+		// totalBytesRead += int64(len(bytesArr))
 
 		if err != nil {
-			fmt.Println("didnt end in the delimiter")
+			// fmt.Println("didnt end in the delimiter")
 			// return "", -1, -1, errors.New("Error reading a the request")
 		}
 
@@ -156,13 +154,14 @@ func Read(conn net.Conn) (string, int64, int, error) {
 				fmt.Println(strings.Split(string(bytesArr), " ")[1])
 				statusCode, err = strconv.Atoi(strings.Split(string(bytesArr), " ")[1])
 			}
-		} else {
-			fmt.Printf("bytes: %d\n", len(bytesArr))
 		}
+		// else {
+		// 	fmt.Printf("bytes: %d\n", len(bytesArr))
+		// }
 
 		if err != nil {
 			if err == io.EOF {
-				fmt.Println("EOF")
+				// fmt.Println("EOF")
 				break
 			}
 			return "", totalBytesRead, -1, err

@@ -3,20 +3,28 @@ package main
 import (
 	"bufio"
 	"bytes"
-	"errors"
+	"container/heap"
 	"fmt"
 	"io"
 	"net"
 	"net/url"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/pborman/getopt"
+	myheap "github.com/rahulnakre/systems_assignment/heap"
 )
 
 func main() {
+	// For the median
+	minHeap := &myheap.MinHeap{}
+	heap.Init(minHeap)
+	maxHeap := &myheap.MaxHeap{}
+	heap.Init(maxHeap)
+
 	urlFlag := getopt.StringLong("url", 0, "", "url of a site")
 	helpFlag := getopt.BoolLong("help", 0, "Help")
 	profileFlag := getopt.Int64Long("profile", 0, 1, "Profile")
@@ -40,6 +48,7 @@ func main() {
 	var totalTime float64 = 0
 	var successCount int64 = 0
 	var errorCodesArr []int
+	var resTimeArr []float64
 	// var totalBytesRead int =
 	for i := int64(0); i < *profileFlag; i++ {
 		startTime := time.Now()
@@ -67,6 +76,12 @@ func main() {
 		}
 
 		resTime := endTime.Sub(startTime).Seconds()
+
+		resTimeArr = append(resTimeArr, resTime)
+		// if maxHeap.Len() == 0 {
+		// 	maxHeap.Push(resTime)
+		// } else if maxHeap.
+
 		if i == 0 || resTime < fastestResTime {
 			fastestResTime = resTime
 		}
@@ -83,11 +98,19 @@ func main() {
 		}
 	}
 
+	sort.Float64s(resTimeArr)
+	var median float64
+	if len(resTimeArr)%2 == 0 {
+		median = float64(resTimeArr[len(resTimeArr)/2]+resTimeArr[(len(resTimeArr)/2)-1]) / float64(2)
+	} else {
+		median = resTimeArr[len(resTimeArr)/2]
+	}
+
 	fmt.Printf("Number of requests: %d\n", *profileFlag)
 	fmt.Printf("Fastest Response Time: %f\n", fastestResTime)
 	fmt.Printf("Slowest Response Time: %f\n", slowestResTime)
 	fmt.Printf("Mean Response Time: %f\n", float64(totalTime)/float64(*profileFlag))
-	fmt.Printf("Median Response Time: %f\n", 1.0)
+	fmt.Printf("Median Response Time: %f\n", median)
 	fmt.Printf("Percentage of Successful Requests: %f%%\n", float64(successCount)/float64(*profileFlag)*100)
 	fmt.Printf("Error response codes: %v\n", errorCodesArr)
 	fmt.Printf("Size of smallest response (in bytes): %d\n", smallestResSize)
@@ -102,25 +125,25 @@ func Read(conn net.Conn) (string, int64, int, error) {
 	var statusCode int
 	var totalBytesRead int64 = 0
 	var headerDone bool = false
-
-	// return "sup", 3, nil
 	var isPrevDelim bool = false
+
 	for {
 		i++
 		bytesArr, err := reader.ReadBytes('\n')
-
+		// totalBytesRead += int64(len(bytesArr))
 		if headerDone {
 			totalBytesRead += int64(len(bytesArr))
 		}
 
 		if err != nil {
-			fmt.Println("didnt end in delim")
-			return "", -1, -1, errors.New("Error reading a the request")
+			fmt.Println("didnt end in the delimiter")
+			// return "", -1, -1, errors.New("Error reading a the request")
 		}
 
 		if !headerDone {
 			if strings.EqualFold(string(bytesArr), "\r\n") && isPrevDelim {
-				fmt.Println("END OF HEADER")
+				fmt.Printf("END OF HEADER: %d\n", totalBytesRead)
+				totalBytesRead = 0
 				headerDone = true
 				continue
 			}
@@ -129,7 +152,7 @@ func Read(conn net.Conn) (string, int64, int, error) {
 				isPrevDelim = true
 			}
 
-			if i == 0 || strings.Contains(string(bytesArr), "200") {
+			if i == 0 {
 				fmt.Println(strings.Split(string(bytesArr), " ")[1])
 				statusCode, err = strconv.Atoi(strings.Split(string(bytesArr), " ")[1])
 			}

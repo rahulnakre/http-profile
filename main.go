@@ -38,6 +38,9 @@ func main() {
 	u, err := url.Parse(*urlFlag)
 	checkError(err)
 	fmt.Println(u.Host)
+	if len(u.Path) == 0 {
+		u.Path = "/"
+	}
 
 	// "http://cloudflare-assignment.rahulnakre.workers.dev"
 	// "http://www.google.com"
@@ -127,14 +130,13 @@ func Read(conn net.Conn) (string, int64, int, error) {
 	for {
 		i++
 		bytesArr, err := reader.ReadBytes('\n')
-		// totalBytesRead += int64(len(bytesArr))
 		if headerDone {
 			totalBytesRead += int64(len(bytesArr))
 		}
 		// totalBytesRead += int64(len(bytesArr))
 
 		if err != nil {
-			// fmt.Println("didnt end in the delimiter")
+			fmt.Println("didnt end in the delimiter")
 			// return "", -1, -1, errors.New("Error reading a the request")
 		}
 
@@ -154,14 +156,14 @@ func Read(conn net.Conn) (string, int64, int, error) {
 				fmt.Println(strings.Split(string(bytesArr), " ")[1])
 				statusCode, err = strconv.Atoi(strings.Split(string(bytesArr), " ")[1])
 			}
+		} else {
+			fmt.Println(string(bytesArr))
+			fmt.Printf("bytes: %d\n", len(bytesArr))
 		}
-		// else {
-		// 	fmt.Printf("bytes: %d\n", len(bytesArr))
-		// }
 
 		if err != nil {
 			if err == io.EOF {
-				// fmt.Println("EOF")
+				fmt.Println("EOF")
 				break
 			}
 			return "", totalBytesRead, -1, err

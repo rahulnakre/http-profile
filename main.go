@@ -19,7 +19,8 @@ import (
 )
 
 func main() {
-	// For the median
+	// NOTE: For a faster median calulation, it's better to do the 2 heap approach
+	// however this week was a bit hectic so I can't get the time to implement this
 	minHeap := &myheap.MinHeap{}
 	heap.Init(minHeap)
 	maxHeap := &myheap.MaxHeap{}
@@ -27,7 +28,8 @@ func main() {
 
 	urlFlag := getopt.StringLong("url", 0, "", "url of a site")
 	helpFlag := getopt.BoolLong("help", 0, "Help")
-	profileFlag := getopt.Int64Long("profile", 0, 1, "Profile")
+	profileFlag := getopt.Int64Long("profile", 0, -1, "Profile: an integer >= 1")
+	showStats := true
 	getopt.Parse()
 
 	if *helpFlag {
@@ -37,14 +39,14 @@ func main() {
 
 	u, err := url.Parse(*urlFlag)
 	checkError(err)
-	fmt.Println(u.Host)
 	if len(u.Path) == 0 {
 		u.Path = "/"
 	}
 
-	// "http://cloudflare-assignment.rahulnakre.workers.dev"
-	// "http://www.google.com"
-	// "http://ran-home.s3-website-us-east-1.amazonaws.com"
+	if *profileFlag < 1 {
+		*profileFlag = 1
+		showStats = false
+	}
 
 	var slowestResTime, fastestResTime float64 = -1, -1
 	var largestResSize, smallestResSize int64 = -1, -1
@@ -52,7 +54,7 @@ func main() {
 	var successCount int64 = 0
 	var errorCodesArr []int
 	var resTimeArr []float64
-	// var totalBytesRead int =
+	var printCount int = 0
 	for i := int64(0); i < *profileFlag; i++ {
 		startTime := time.Now()
 
@@ -63,12 +65,16 @@ func main() {
 		_, err = fmt.Fprintf(conn, "GET %s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n", u.Path, u.Host)
 		checkError(err)
 
-		_, totalBytesRead, statusCode, err := Read(conn)
+		res, totalBytesRead, statusCode, err := Read(conn)
 		checkError(err)
 
 		endTime := time.Now()
 
-		fmt.Printf("bytes read: %d\n", totalBytesRead)
+		// only print the body once
+		if printCount == 0 {
+			fmt.Printf(string(res))
+			printCount++
+		}
 
 		if statusCode >= 200 && statusCode <= 299 {
 			successCount++
@@ -98,6 +104,10 @@ func main() {
 		}
 	}
 
+	if !showStats {
+		return
+	}
+
 	sort.Float64s(resTimeArr)
 	var median float64
 	if len(resTimeArr)%2 == 0 {
@@ -117,7 +127,10 @@ func main() {
 	fmt.Printf("Size of largest response (in bytes): %d\n", largestResSize)
 }
 
-// Read reads from a connection
+// Read reads from a connection. Avoided io.ReadAll() because I don't want the entire response
+// in memory. NOTE: some responses have a larger byte size than one reported by curl - %{size_download}
+// And the same can be reproduced using io.ReadAll(). Interestingly, http.Get{} does not seem to suffer
+// from this issue. Next time, I would fix this
 func Read(conn net.Conn) (string, int64, int, error) {
 	reader := bufio.NewReader(conn)
 	var buffer bytes.Buffer
@@ -133,16 +146,9 @@ func Read(conn net.Conn) (string, int64, int, error) {
 		if headerDone {
 			totalBytesRead += int64(len(bytesArr))
 		}
-		// totalBytesRead += int64(len(bytesArr))
-
-		if err != nil {
-			fmt.Println("didnt end in the delimiter")
-			// return "", -1, -1, errors.New("Error reading a the request")
-		}
 
 		if !headerDone {
 			if strings.EqualFold(string(bytesArr), "\r\n") && isPrevDelim {
-				fmt.Printf("END OF HEADER: %d\n", totalBytesRead)
 				totalBytesRead = 0
 				headerDone = true
 				continue
@@ -153,22 +159,18 @@ func Read(conn net.Conn) (string, int64, int, error) {
 			}
 
 			if i == 0 {
-				fmt.Println(strings.Split(string(bytesArr), " ")[1])
 				statusCode, err = strconv.Atoi(strings.Split(string(bytesArr), " ")[1])
 			}
 		} else {
-			fmt.Println(string(bytesArr))
-			fmt.Printf("bytes: %d\n", len(bytesArr))
+			buffer.Write(bytesArr)
 		}
 
 		if err != nil {
 			if err == io.EOF {
-				fmt.Println("EOF")
 				break
 			}
 			return "", totalBytesRead, -1, err
 		}
-		buffer.Write(bytesArr)
 	}
 	return buffer.String(), totalBytesRead, statusCode, nil
 }
